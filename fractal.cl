@@ -33,7 +33,7 @@ double fractal(const double2 c, const double2 z_) {
 			return sl;
 		}
 	}
-	return 0.0;
+	return -1.0;
 }
 
 double mandelbrot(const double2 coordinate,const double2 offset) {
@@ -56,6 +56,7 @@ kernel void sum(
 	double r_step,
 	double i_step,
 	global uchar *outbuf
+	// TODO: c, multipler, offset
 ) {
 	private double r;
 	private double i;
@@ -63,16 +64,31 @@ kernel void sum(
 	private double fractalValue;
 	private double3 color;
 	private uchar3 color_byte;
-	//double aspect_rato = ((double) get_global_size(0)) / ((double) get_global_size(1));
-	//double2 center = (double2) (-0.743643887037151, 0.131825904205330);
 
 	r = r_min + r_step * convert_double(get_global_id(0));
 	i = i_min + i_step * convert_double(get_global_id(1));
 
-	idx = (get_global_id(1) * get_global_size(0) + get_global_id(0)) * 3;
+	idx = ((get_global_size(1) - get_global_id(1) - 1) * get_global_size(0) + get_global_id(0)) * 3;
 	fractalValue = FRACTAL_FUNC((double2)(r, i), (double2)(0, 0));
-	color = 0.5 + 0.5*cos( 3.0 + fractalValue*0.15 + (double3)(0.0,0.6,1.0));
-	color_byte = convert_uchar3(color*256);
+
+	if (fractalValue > 0.0) {
+		// normalize
+		fractalValue *= 4;
+		fractalValue = log2(fractalValue + 1.0)*0.5;
+
+		fractalValue = fmod(fractalValue, 1+1.1e-16);
+		if (fractalValue < 0.5) {
+			fractalValue *= 2;
+		} else {
+			fractalValue = 2.0 - 2.0*fractalValue;
+		}
+
+		// colorize
+		color = 0.5 + 0.5*cos( 3.0 + fractalValue*2*M_PI + (double3)(0.0,0.6,1.0));
+		color_byte = convert_uchar3(color*256);
+	} else {
+		color_byte = (uchar3)(0,0,0);
+	}
 
 	outbuf[idx+0] = convert_uchar(color_byte.x);
 	outbuf[idx+1] = convert_uchar(color_byte.y);
