@@ -51,16 +51,15 @@ double julia(const double2 coordinate, const double2 offset) {
 }
 
 kernel void sum(
+	write_only image2d_t dest,
 	double r_min,
 	double i_min,
 	double r_step,
-	double i_step,
-	global uchar *outbuf
+	double i_step
 	// TODO: c, multipler, offset
 ) {
 	private double r;
 	private double i;
-	private size_t idx;
 	private double fractalValue;
 	private double3 color;
 	private uchar3 color_byte;
@@ -68,7 +67,6 @@ kernel void sum(
 	r = r_min + r_step * convert_double(get_global_id(0));
 	i = i_min + i_step * convert_double(get_global_id(1));
 
-	idx = ((get_global_size(1) - get_global_id(1) - 1) * get_global_size(0) + get_global_id(0)) * 3;
 	fractalValue = FRACTAL_FUNC((double2)(r, i), (double2)(0, 0));
 
 	if (fractalValue > 0.0) {
@@ -90,15 +88,14 @@ kernel void sum(
 		color_byte = (uchar3)(0,0,0);
 	}
 
-	outbuf[idx+0] = convert_uchar(color_byte.x);
-	outbuf[idx+1] = convert_uchar(color_byte.y);
-	outbuf[idx+2] = convert_uchar(color_byte.z);
+	int2 pos = (int2)(get_global_id(0), get_global_size(1) - get_global_id(1) - 1);
+	uint4 pix = (uint4) (color_byte.x, color_byte.y, color_byte.z, 255);
+	write_imageui(dest, pos, pix);
 
 #if DEBUG
 	printf("%6llu %6llu | %6llu | %9f %9f %9f %9f | %9f %9f | %9f \n",
 		(size_t) get_global_id(0),
 		(size_t) get_global_id(1),
-		(size_t) idx,
 		(double) r_min,
 		(double) i_min,
 		(double) r_step,
